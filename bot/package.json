@@ -1,0 +1,19 @@
+{
+  "name": "@tichu/bot",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/main.ts",
+  "scripts": {
+    "start": "npx tsx src/main.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@tichu/shared": "*",
+    "eventsource": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/eventsource": "^1.1.15",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

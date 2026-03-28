@@ -4,14 +4,16 @@
   "workspaces": [
     "shared",
     "server",
-    "client"
+    "client",
+    "bot"
   ],
   "scripts": {
     "dev:server": "npm run dev --workspace=server",
     "dev:client": "npm run dev --workspace=client",
     "build": "npm run build --workspace=shared && npm run build --workspace=server && npm run build --workspace=client",
     "test": "npm test --workspace=shared",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\""
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "bot": "npm start --workspace=bot"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
