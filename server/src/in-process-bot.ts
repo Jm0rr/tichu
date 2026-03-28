@@ -58,9 +58,28 @@ export function scheduleTickBots(room: Room): void {
 
   const timer = setTimeout(() => {
     pendingTicks.delete(room.code);
-    tickBots(room);
+    try {
+      tickBots(room);
+    } catch (err) {
+      console.error(`[Bot] Error in tickBots for room ${room.code}:`, err);
+      // Retry after a delay to avoid permanent stall
+      scheduleTickBots(room);
+    }
   }, delay);
   pendingTicks.set(room.code, timer);
+}
+
+/**
+ * Filter playable combos for MahJong wish compliance.
+ * If a wish is active and the player can fulfill it, only wish-compliant combos are returned.
+ */
+function filterForWish(playable: Combo[], wish: NormalRank | null, currentTrick: Combo | null): Combo[] {
+  if (wish == null || currentTrick == null) return playable;
+  const wishCompliant = playable.filter(combo =>
+    combo.cards.some(c => c.type === 'normal' && c.rank === wish)
+  );
+  // If any combos contain the wished rank, player must use one
+  return wishCompliant.length > 0 ? wishCompliant : playable;
 }
 
 function tickBots(room: Room): void {
@@ -105,7 +124,7 @@ function tickBots(room: Room): void {
 
   // --- Playing phase: one bot acts per tick ---
   if (state.phase === 'playing') {
-    // Don't act during countdowns or bomb windows
+    // Don't act during countdowns or bomb windows — timer will resolve these
     if (state.trickCountdown || state.bombWindow) return;
 
     // Handle dragon giveaway
@@ -148,14 +167,22 @@ function tickBots(room: Room): void {
 
     // Find playable combos
     const clientState = toClientState(state, turnSeat);
-    const playable = findPlayableCombos(clientState.myHand, state.currentTrick);
+    let playable = findPlayableCombos(clientState.myHand, state.currentTrick);
+
+    // Filter for MahJong wish compliance
+    playable = filterForWish(playable, state.mahJongWish, state.currentTrick);
 
     if (playable.length === 0) {
       if (state.currentTrick) {
         const result = handlePassTurn(room, turnSeat);
+        // Detect rejected pass (wish forces play)
+        if (result.state === state) {
+          console.error(`[Bot] Pass rejected for seat ${turnSeat} in room ${room.code} — possible wish enforcement bug`);
+        }
         _processPlayResult(_io, room, turnSeat, result);
-        scheduleTickBots(room);
       }
+      // Always schedule next tick to avoid permanent stall
+      scheduleTickBots(room);
       return;
     }
 
@@ -171,13 +198,40 @@ function tickBots(room: Room): void {
       chosen = chooseFollow(clientState, playable);
     }
 
+    // Fallback: never return null when we have playable combos
+    if (!chosen && playable.length > 0) {
+      chosen = playable[0];
+    }
+
     if (chosen) {
+      const prevState = room.state;
       const result = handlePlayCards(room, turnSeat, chosen.cards);
-      _processPlayResult(_io, room, turnSeat, result);
-      // Handle MahJong wish immediately
-      if (result.needMahJongWish) {
-        handleMahJongWish(room, turnSeat, 14 as NormalRank);
-        _broadcastState(_io, room);
+
+      // Detect rejected play (e.g. wish compliance failure)
+      if (result.state === prevState && playable.length > 0) {
+        console.warn(`[Bot] Play rejected for seat ${turnSeat}, trying first playable combo`);
+        // Try the first playable combo as fallback
+        const fallbackResult = handlePlayCards(room, turnSeat, playable[0].cards);
+        if (fallbackResult.state !== prevState) {
+          _processPlayResult(_io, room, turnSeat, fallbackResult);
+          if (fallbackResult.needMahJongWish) {
+            handleMahJongWish(room, turnSeat, 14 as NormalRank);
+            _broadcastState(_io, room);
+          }
+        } else {
+          console.error(`[Bot] All plays rejected for seat ${turnSeat} — forcing pass`);
+          if (state.currentTrick) {
+            const passResult = handlePassTurn(room, turnSeat);
+            _processPlayResult(_io, room, turnSeat, passResult);
+          }
+        }
+      } else {
+        _processPlayResult(_io, room, turnSeat, result);
+        // Handle MahJong wish immediately
+        if (result.needMahJongWish) {
+          handleMahJongWish(room, turnSeat, 14 as NormalRank);
+          _broadcastState(_io, room);
+        }
       }
     } else {
       if (state.currentTrick) {

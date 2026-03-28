@@ -25,9 +25,15 @@ export function ismctsSearch(
   for (const combo of playable) {
     rootActions.push({ type: 'play', combo });
   }
-  // Can always pass if there's a current trick
+  // Can pass if there's a current trick, unless wish forces a play
   if (clientState.currentTrick !== null) {
-    rootActions.push({ type: 'pass' });
+    const wish = clientState.mahJongWish;
+    const mustPlayWish = wish != null &&
+      clientState.myHand.some(c => c.type === 'normal' && c.rank === wish) &&
+      playable.length > 0;
+    if (!mustPlayWish) {
+      rootActions.push({ type: 'pass' });
+    }
   }
 
   if (rootActions.length <= 1) {
@@ -107,15 +113,31 @@ function runIteration(
 function getLegalActions(state: GameState): MctsAction[] {
   const seat = state.turnIndex;
   const hand = state.players[seat].hand;
-  const playable = findPlayableCombos(hand, state.currentTrick);
+  let playable = findPlayableCombos(hand, state.currentTrick);
   const actions: MctsAction[] = [];
+
+  // Filter for MahJong wish compliance
+  if (state.mahJongWish != null && state.currentTrick) {
+    const wish = state.mahJongWish;
+    const wishCompliant = playable.filter(c =>
+      c.cards.some(card => card.type === 'normal' && card.rank === wish)
+    );
+    if (wishCompliant.length > 0) playable = wishCompliant;
+  }
 
   for (const combo of playable) {
     actions.push({ type: 'play', combo });
   }
 
+  // Can only pass if there's a current trick AND not forced by wish
   if (state.currentTrick !== null) {
-    actions.push({ type: 'pass' });
+    // Don't add pass if wish forces a play
+    const mustPlayWish = state.mahJongWish != null &&
+      hand.some(c => c.type === 'normal' && c.rank === state.mahJongWish) &&
+      playable.length > 0;
+    if (!mustPlayWish) {
+      actions.push({ type: 'pass' });
+    }
   }
 
   return actions;

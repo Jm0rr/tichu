@@ -38,12 +38,22 @@ export function rollout(state: GameState, perspective: Seat): number {
 
     const seat = state.turnIndex;
     const hand = state.players[seat].hand;
-    const playable = findPlayableCombos(hand, state.currentTrick);
+    let playable = findPlayableCombos(hand, state.currentTrick);
+
+    // Filter for MahJong wish compliance
+    if (state.mahJongWish != null && state.currentTrick) {
+      const wish = state.mahJongWish;
+      const wishCompliant = playable.filter(c =>
+        c.cards.some(card => card.type === 'normal' && card.rank === wish)
+      );
+      if (wishCompliant.length > 0) playable = wishCompliant;
+    }
 
     if (playable.length === 0) {
       // Must pass
       if (state.currentTrick) {
         const result = passTurn(state, seat);
+        if (result.state === state) break; // Pass rejected (shouldn't happen), bail
         state = result.state;
         // Auto-award trick if countdown started
         if (state.trickCountdown) {
@@ -59,6 +69,20 @@ export function rollout(state: GameState, perspective: Seat): number {
     // Use heuristic to choose
     const combo = heuristicChoose(state, seat, playable);
     const result = playCards(state, seat, combo.cards);
+    // Detect rejected play and try fallback
+    if (result.state === state && playable.length > 0) {
+      const fallback = playCards(state, seat, playable[0].cards);
+      if (fallback.state === state) break; // All plays rejected, bail
+      state = fallback.state;
+      if (fallback.needMahJongWish) {
+        state = { ...state, mahJongWish: 14 as any };
+      }
+      if (state.trickCountdown) {
+        const awardResult = awardTrick(state);
+        state = awardResult.state;
+      }
+      continue;
+    }
     state = result.state;
 
     // Handle mah jong wish
