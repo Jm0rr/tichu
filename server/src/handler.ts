@@ -399,7 +399,8 @@ export function setupHandlers(io: Server): void {
         socket.emit('error', { message: markResult.error });
         return;
       }
-      const addResult = addApiPlayer(room, 'Bot', seat);
+      const botNames = ['Alice', 'Bob', 'Charlie', 'Dana'];
+      const addResult = addApiPlayer(room, botNames[seat], seat);
       if ('error' in addResult) {
         unmarkSeatForAi(room, seat);
         socket.emit('error', { message: addResult.error });
