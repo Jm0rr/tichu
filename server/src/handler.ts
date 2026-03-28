@@ -10,8 +10,9 @@ import {
   createInvite, removeInvite, getInvite, getInvitesForUser,
   clearInvitesForRoom,
   setTrickCountdownTimer, clearTrickCountdownTimer, handleAwardTrick,
-  markSeatForAi, unmarkSeatForAi, isApiPlayer,
+  markSeatForAi, unmarkSeatForAi, addApiPlayer, removeApiPlayer, isApiPlayer,
 } from './rooms.js';
+import { setupBotRunner, scheduleTickBots } from './in-process-bot.js';
 import { verifyIdToken, firebaseAdmin } from './firebase.js';
 import { updateStatsForRound, updateStatsForGameEnd, updateTeamStats, saveRoundLog, fetchInvitableUsers } from './stats.js';
 import {
@@ -52,6 +53,9 @@ function getIp(socket: Socket): string {
 }
 
 export function setupHandlers(io: Server): void {
+  // Initialize in-process bot runner (must happen before any connections)
+  setupBotRunner(io, broadcastState, processPlayResult);
+
   io.on('connection', async (socket: Socket) => {
     const ip = getIp(socket);
     const currentCount = connectionsPerIp.get(ip) ?? 0;
@@ -377,6 +381,54 @@ export function setupHandlers(io: Server): void {
       broadcastState(io, room);
     });
 
+    // Add an in-process AI bot to a seat (marks + fills in one step)
+    socket.on('add-bot', ({ seat }: { seat: unknown }) => {
+      if (!isValidSeat(seat)) {
+        socket.emit('error', { message: 'Invalid seat' });
+        return;
+      }
+      const found = getRoomBySocket(socket.id);
+      if (!found) return;
+      const { room } = found;
+      if (room.organizer !== socket.id) {
+        socket.emit('error', { message: 'Only the room creator can add bots' });
+        return;
+      }
+      const markResult = markSeatForAi(room, seat);
+      if (markResult.error) {
+        socket.emit('error', { message: markResult.error });
+        return;
+      }
+      const addResult = addApiPlayer(room, 'Bot', seat);
+      if ('error' in addResult) {
+        unmarkSeatForAi(room, seat);
+        socket.emit('error', { message: addResult.error });
+        return;
+      }
+      broadcastState(io, room);
+    });
+
+    // Remove an in-process AI bot from a seat
+    socket.on('remove-bot', ({ seat }: { seat: unknown }) => {
+      if (!isValidSeat(seat)) {
+        socket.emit('error', { message: 'Invalid seat' });
+        return;
+      }
+      const found = getRoomBySocket(socket.id);
+      if (!found) return;
+      const { room } = found;
+      if (room.organizer !== socket.id) {
+        socket.emit('error', { message: 'Only the room creator can remove bots' });
+        return;
+      }
+      const result = removeApiPlayer(room, seat);
+      if (result.error) {
+        socket.emit('error', { message: result.error });
+        return;
+      }
+      broadcastState(io, room);
+    });
+
     // ===== Invite System =====
 
     socket.on('fetch-players', async (callback: (data: { players: InvitablePlayer[] }) => void) => {
@@ -607,6 +659,8 @@ export function broadcastState(io: Server, room: Room): void {
     io.to(socketId).emit('game-state', { state: clientState, aiOpenSeats });
   }
   sseBroadcastCallback?.(room);
+  // Trigger in-process bot actions
+  scheduleTickBots(room);
 }
 
 /** Notify a specific seat about an event (handles both socket and API players) */

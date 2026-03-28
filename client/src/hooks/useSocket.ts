@@ -241,6 +241,14 @@ export function useSocket(idToken: string | null) {
     socketRef.current?.emit('unmark-seat-ai', { seat });
   }, []);
 
+  const addBot = useCallback((seat: Seat) => {
+    socketRef.current?.emit('add-bot', { seat });
+  }, []);
+
+  const removeBot = useCallback((seat: Seat) => {
+    socketRef.current?.emit('remove-bot', { seat });
+  }, []);
+
   const resetRoom = useCallback(() => {
     setGameState(null);
     gameStateRef.current = null;
@@ -289,6 +297,8 @@ export function useSocket(idToken: string | null) {
     aiOpenSeats,
     markSeatAi,
     unmarkSeatAi,
+    addBot,
+    removeBot,
     loadProfile,
     saveSettings,
     updateRandomPartners,

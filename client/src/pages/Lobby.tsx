@@ -56,6 +56,8 @@ export default function Lobby({ socket, auth }: Props) {
         onStartGame={socket.startGame}
         onMarkSeatAi={socket.markSeatAi}
         onUnmarkSeatAi={socket.unmarkSeatAi}
+        onAddBot={socket.addBot}
+        onRemoveBot={socket.removeBot}
         fetchPlayers={socket.fetchPlayers}
         sendInvite={socket.sendInvite}
         expiredInviteUids={socket.expiredInviteUids}

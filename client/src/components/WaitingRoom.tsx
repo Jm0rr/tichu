@@ -17,6 +17,8 @@ type Props = {
   onStartGame: () => void;
   onMarkSeatAi: (seat: Seat) => void;
   onUnmarkSeatAi: (seat: Seat) => void;
+  onAddBot: (seat: Seat) => void;
+  onRemoveBot: (seat: Seat) => void;
   fetchPlayers: () => Promise<{ players: InvitablePlayer[] }>;
   sendInvite: (targetUid: string) => void;
   expiredInviteUids: Set<string>;
@@ -25,7 +27,7 @@ type Props = {
 export default function WaitingRoom({
   roomCode, gameState, isOrganizer, randomPartners, hasProfile,
   aiOpenSeats, onSwapSeats, onUpdateSettings, onUpdateRandomPartners, onStartGame,
-  onMarkSeatAi, onUnmarkSeatAi,
+  onMarkSeatAi, onUnmarkSeatAi, onAddBot, onRemoveBot,
   fetchPlayers, sendInvite, expiredInviteUids,
 }: Props) {
   const [swapFrom, setSwapFrom] = useState<Seat | null>(null);
@@ -101,19 +103,26 @@ export default function WaitingRoom({
                   </span>
                   <br />
                   {p.name || (isAiOpen ? 'Waiting for bot...' : 'Waiting...')}
-                  {!p.name && isOrganizer && (
+                  {!p.name && !isAiPlayer && isOrganizer && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        isAiOpen ? onUnmarkSeatAi(seat) : onMarkSeatAi(seat);
+                        onAddBot(seat);
                       }}
-                      className={`mt-1 text-xs px-2 py-0.5 rounded transition-colors ${
-                        isAiOpen
-                          ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                          : 'bg-gray-600 hover:bg-gray-500 text-gray-200'
-                      }`}
+                      className="mt-1 text-xs px-2 py-0.5 rounded transition-colors bg-blue-600 hover:bg-blue-500 text-white"
                     >
-                      {isAiOpen ? 'Cancel AI' : 'Open for AI'}
+                      Add Bot
+                    </button>
+                  )}
+                  {isAiPlayer && isOrganizer && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveBot(seat);
+                      }}
+                      className="mt-1 text-xs px-2 py-0.5 rounded transition-colors bg-red-600 hover:bg-red-500 text-white"
+                    >
+                      Remove Bot
                     </button>
                   )}
                 </div>
