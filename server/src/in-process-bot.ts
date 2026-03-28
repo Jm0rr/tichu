@@ -124,8 +124,8 @@ function tickBots(room: Room): void {
 
   // --- Playing phase: one bot acts per tick ---
   if (state.phase === 'playing') {
-    // Don't act during countdowns or bomb windows — timer will resolve these
-    if (state.trickCountdown || state.bombWindow) return;
+    // Don't act during countdowns, bomb windows, or pending wishes
+    if (state.trickCountdown || state.bombWindow || room.wishPending) return;
 
     // Handle dragon giveaway
     if (state.dragonGiveaway && state.dragonGiveawayBy != null) {

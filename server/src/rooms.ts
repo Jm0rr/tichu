@@ -28,6 +28,7 @@ export type Room = {
   gameId: string;
   accumulator: RoundAccumulator;
   aiOpenSeats: Set<Seat>;           // seats marked as open for AI players
+  wishPending: boolean;             // true while waiting for a human to make a MahJong wish
 };
 
 const rooms = new Map<string, Room>();
@@ -213,6 +214,7 @@ export function createRoom(socketId: string, playerName: string, randomPartners:
     gameId,
     accumulator: createAccumulator(gameId, [0, 0]),
     aiOpenSeats: new Set(),
+    wishPending: false,
   };
 
   rooms.set(code, room);

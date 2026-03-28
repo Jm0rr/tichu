@@ -255,14 +255,18 @@ export function setupHandlers(io: Server): void {
     });
 
     socket.on('mah-jong-wish', ({ rank }: { rank: unknown }) => {
-      if (!isValidNormalRank(rank)) {
+      // rank can be null to decline the wish
+      if (rank !== null && !isValidNormalRank(rank)) {
         socket.emit('error', { message: 'Invalid rank' });
         return;
       }
       const found = getRoomBySocket(socket.id);
       if (!found) return;
       const { room, seat } = found;
-      handleMahJongWish(room, seat, rank);
+      if (rank !== null) {
+        handleMahJongWish(room, seat, rank);
+      }
+      room.wishPending = false;
       broadcastState(io, room);
     });
 
@@ -683,6 +687,11 @@ export function processPlayResult(io: Server, room: Room, seat: Seat, result: Pl
   applyPlayResult(room, result);
 
   if (result.needMahJongWish) {
+    const socketId = room.seatPlayers.get(seat);
+    if (socketId && !isApiPlayer(socketId)) {
+      // Human player — block bots until wish is resolved
+      room.wishPending = true;
+    }
     notifySeat(io, room, seat, 'need-mah-jong-wish');
   }
   if (result.needDragonChoice && result.state.dragonGiveawayBy != null) {
